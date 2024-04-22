@@ -2,10 +2,14 @@
 package fdmom
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
 )
+
+// ErrTimeout is a reason for no results.
+var ErrTimeout = errors.New("fdmom: await interrupted by timeout")
 
 // A Filer grants its file (descriptor).
 type filer interface {
