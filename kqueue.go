@@ -27,7 +27,7 @@ func OpenWatch() (*Watch, error) {
 // Close implements the io.Closer interface.
 func (w *Watch) Close() error {
 	err := syscall.Close(w.queueFD)
-	if err != nil {
+	if err != nil && err != syscall.EBADF {
 		return fmt.Errorf("Watch stuck on close(2) of kqueue(2) error %w", err)
 	}
 	return nil
@@ -47,14 +47,20 @@ func (w *Watch) AwaitFDWithRead(timeout time.Duration) (fd int, err error) {
 	// prevent a single descriptor from consuming all attention.
 	var buf [2]syscall.Kevent_t
 	var bufN int
+ReadEvents:
 	for {
 		bufN, err = syscall.Kevent(w.queueFD, nil, buf[:], tsp)
-		if err == nil {
-			break
-		}
-		if err == syscall.EINTR {
+		switch err {
+		case nil:
+			break ReadEvents
+
+		case syscall.EBADF:
+			return 0, ErrClosed
+
+		case syscall.EINTR:
 			continue
 		}
+
 		return 0, fmt.Errorf("Watch unavailable due kevent(2) error %w", err)
 	}
 
@@ -87,6 +93,9 @@ func (w *Watch) IncludeFD(fd int) error {
 	// changelist have been applied.”
 	// ―the System Calls Manual from FreeBSD
 	if err != nil && err != syscall.EINTR {
+		if err == syscall.EBADF {
+			return ErrClosed
+		}
 		return fmt.Errorf("Watch IncludeFD lost on kevent(2) error %w", err)
 	}
 
@@ -115,6 +124,9 @@ func (w *Watch) ExcludeFD(fd int) error {
 	// changelist have been applied.”
 	// ―the System Calls Manual from FreeBSD
 	if err != nil && err != syscall.EINTR {
+		if err == syscall.EBADF {
+			return ErrClosed
+		}
 		return fmt.Errorf("Watch ExcludeFD lost on kevent(2) error %w", err)
 	}
 

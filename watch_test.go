@@ -159,6 +159,42 @@ func TestWatchExcludeDupe(t *testing.T) {
 	}
 }
 
+func TestClosed(t *testing.T) {
+	w, err := OpenWatch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer w.Close()
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		err := w.Close()
+		if err != nil {
+			t.Error("Close got error:", err)
+		}
+	}()
+
+	_, err = w.AwaitFDWithRead(-1)
+	if err != ErrClosed {
+		t.Errorf("blocked await got error %v, want ErrClosed", err)
+	}
+
+	_, err = w.AwaitFDWithRead(0)
+	if err != ErrClosed {
+		t.Errorf("non-blocking await got error %v, want ErrClosed", err)
+	}
+
+	stdin := int(os.Stdin.Fd())
+	err = w.IncludeFD(stdin)
+	if err != ErrClosed {
+		t.Errorf("include got error %v, want ErrClosed", err)
+	}
+	err = w.ExcludeFD(stdin)
+	if err != ErrClosed {
+		t.Errorf("exclude got error %v, want ErrClosed", err)
+	}
+}
+
 func newPipe(t *testing.T) pipe {
 	t.Parallel()
 	const testTimeout = 2 * time.Second

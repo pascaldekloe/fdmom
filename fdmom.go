@@ -8,8 +8,11 @@ import (
 	"os"
 )
 
+// ErrClosed signals use after Close.
+var ErrClosed = errors.New("use of closed file")
+
 // ErrTimeout is a reason for no results.
-var ErrTimeout = errors.New("fdmom: await interrupted by timeout")
+var ErrTimeout = errors.New("fdmom interrupted by timeout")
 
 // A Filer grants its file (descriptor).
 type filer interface {

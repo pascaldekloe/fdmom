@@ -31,7 +31,7 @@ func OpenWatch() (*Watch, error) {
 // Close implements the io.Closer interface.
 func (w *Watch) Close() error {
 	err := syscall.Close(w.epollFD)
-	if err != nil {
+	if err != nil && err != syscall.EBADF {
 		return fmt.Errorf("Watch stuck on close(2) of epoll(7) error %w", err)
 	}
 	return nil
@@ -49,16 +49,19 @@ func (w *Watch) AwaitFDWithRead(timeout time.Duration) (fd int, err error) {
 
 	// epoll_wait(2) goes round robin on multiple matches
 	var buf [1]syscall.EpollEvent
+ReadEvents:
 	for {
 		n, err := syscall.EpollWait(w.epollFD, buf[:], msec)
-		if err == nil {
+		switch err {
+		case nil:
 			if n == 0 {
 				return 0, ErrTimeout
 			}
-			break
-		}
-		if err == syscall.EINTR {
+			break ReadEvents
+		case syscall.EINTR:
 			continue
+		case syscall.EBADF:
+			return 0, ErrClosed
 		}
 		return 0, fmt.Errorf("Watch unavailable due epoll_wait(2) error %w", err)
 	}
@@ -78,6 +81,8 @@ func (w *Watch) IncludeFD(fd int) error {
 		return nil
 	case syscall.EPERM:
 		return ErrWatchable
+	case syscall.EBADF:
+		return ErrClosed
 	}
 	return fmt.Errorf("Watch include of file lost on epoll_ctl(2) error %w", err)
 }
@@ -96,6 +101,8 @@ func (w *Watch) ExcludeFD(fd int) error {
 	case syscall.EPERM:
 		// not documented whether this can happen
 		return ErrWatchable
+	case syscall.EBADF:
+		return ErrClosed
 	}
 	return fmt.Errorf("Watch exclude of file lost on epoll_ctl(2) error %w", err)
 }
