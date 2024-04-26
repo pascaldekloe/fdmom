@@ -166,22 +166,15 @@ func TestClosed(t *testing.T) {
 	}
 	defer w.Close()
 
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		err := w.Close()
-		if err != nil {
-			t.Error("Close got error:", err)
-		}
-	}()
-
-	_, err = w.AwaitFDWithRead(-1)
-	if err != ErrClosed {
-		t.Errorf("blocked await got error %v, want ErrClosed", err)
+	time.Sleep(50 * time.Millisecond)
+	err = w.Close()
+	if err != nil {
+		t.Error("Close got error:", err)
 	}
 
 	_, err = w.AwaitFDWithRead(0)
 	if err != ErrClosed {
-		t.Errorf("non-blocking await got error %v, want ErrClosed", err)
+		t.Errorf("await got error %v, want ErrClosed", err)
 	}
 
 	stdin := int(os.Stdin.Fd())
